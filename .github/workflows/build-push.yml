@@ -1,0 +1,34 @@
+# CLO835 Project 12 - build the web app image and push it to Docker Hub.
+# Task 10: this workflow ONLY builds and pushes. It never contacts the cluster
+# (no kubectl anywhere in this file).
+name: Build and push web app image
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "app/**"
+      - ".github/workflows/build-push.yml"
+  workflow_dispatch:
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build app/ and push the image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./app
+          push: true
+          tags: |
+            tdpatel12/clo835-project12-webapp:latest
+            tdpatel12/clo835-project12-webapp:${{ github.sha }}
