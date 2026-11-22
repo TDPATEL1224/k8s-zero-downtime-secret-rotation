@@ -1,0 +1,54 @@
+# ===================================================================
+# NOT DEPLOYED - comparison file for Task 5. bootstrap.sh never applies it.
+# ===================================================================
+# Same web app, but the Secret is consumed as ENVIRONMENT VARIABLES
+# (env.valueFrom.secretKeyRef) instead of a mounted volume.
+#
+# WHY THIS CANNOT PICK UP A ROTATED PASSWORD WITHOUT A RESTART:
+#   Env vars are copied into the container ONCE, when it starts. If the
+#   Secret changes later, the running process still holds the old values;
+#   only a new Pod (restart) reads the new ones.
+#
+# WHY THE FILE MOUNT (webapp.yaml) CAN:
+#   The kubelet rewrites the mounted files when the Secret changes
+#   (after a sync delay of up to ~1 minute), and our app re-reads the
+#   files on every connection.
+#
+# WHY WE STILL ROLL THE DEPLOYMENT ANYWAY:
+#   1. Re-auth: every Pod opens connections with the new user, provably.
+#   2. Kubelet sync lag: we do not wait an unknown time for files to update.
+#   3. Deterministic cutover: rollout status tells us exactly when every
+#      Pod is on the new credential, so we know when it is safe to drop
+#      the old user.
+#
+# Its label differs from the real app, so the NodePort Service never
+# sends traffic to it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webapp-envvar-105823249
+  namespace: rotation-105823249
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webapp-envvar-105823249
+  template:
+    metadata:
+      labels:
+        app: webapp-envvar-105823249
+    spec:
+      containers:
+        - name: webapp
+          image: tdpatel12/clo835-project12-webapp:latest
+          env:
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: db-cred-105823249
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-cred-105823249
+                  key: password

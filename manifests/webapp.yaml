@@ -1,0 +1,76 @@
+# CLO835 Project 12 - web tier (student 105823249)
+# Deployment: 2 replicas, rolling update with maxUnavailable 0 / maxSurge 1,
+# readiness probe on /healthz (passes only if this Pod can run SELECT 1),
+# DB credentials mounted as FILES from Secret db-cred-105823249 (Task 4).
+# Service: NodePort 30080, mapped to the host in kind-config.yaml (Task 6).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webapp-105823249
+  namespace: rotation-105823249
+  labels:
+    app: webapp-105823249
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0     # never fewer than 2 ready Pods during a rollout
+      maxSurge: 1           # add 1 new Pod at a time
+  selector:
+    matchLabels:
+      app: webapp-105823249
+  template:
+    metadata:
+      labels:
+        app: webapp-105823249
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: webapp
+          image: tdpatel12/clo835-project12-webapp:latest
+          imagePullPolicy: IfNotPresent   # pulled once per cluster; no Docker Hub dependency mid-demo
+          ports:
+            - containerPort: 8080
+          env:                            # NON-secret settings only
+            - name: DBHOST
+              value: mysql-105823249
+            - name: DBPORT
+              value: "3306"
+            - name: DATABASE
+              value: app_105823249
+            - name: CRED_DIR
+              value: /etc/dbcred
+          readinessProbe:                 # Task 1: traffic only to Pods that can reach MySQL
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 2
+            failureThreshold: 2
+          lifecycle:
+            preStop:                      # keep serving ~10s while the Pod is removed from the Service
+              exec:
+                command: ["sleep", "10"]
+          volumeMounts:
+            - name: dbcred
+              mountPath: /etc/dbcred      # gives /etc/dbcred/username and /etc/dbcred/password
+              readOnly: true
+      volumes:
+        - name: dbcred
+          secret:
+            secretName: db-cred-105823249 # whole Secret mounted (no subPath, so updates flow in)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webapp-105823249
+  namespace: rotation-105823249
+spec:
+  type: NodePort
+  selector:
+    app: webapp-105823249
+  ports:
+    - port: 80
+      targetPort: 8080
+      nodePort: 30080
