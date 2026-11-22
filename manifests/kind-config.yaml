@@ -1,0 +1,16 @@
+# CLO835 Project 12 - kind cluster definition (student 105823249)
+# 1 control-plane + 2 workers. Each "node" is a Docker container on the EC2 host.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: clo835-105823249
+
+nodes:
+  - role: control-plane
+    # Task 6: open port 30080 on the EC2 host and forward it into the cluster,
+    # so "curl http://localhost:30080/" on the host reaches the NodePort Service.
+    extraPortMappings:
+      - containerPort: 30080   # the NodePort the web app Service will use (Step 3)
+        hostPort: 30080        # the port on the EC2 host
+        protocol: TCP
+  - role: worker
+  - role: worker
