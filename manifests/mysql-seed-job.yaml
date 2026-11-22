@@ -1,0 +1,56 @@
+# CLO835 Project 12 - seed Job (Task 3)
+# Creates DB app_105823249, table "records" with 3 rows containing my student ID,
+# and DB user appuser_v1_105823249. Passwords are read from Secrets at run time;
+# nothing secret is stored in git (Task 11).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mysql-seed-105823249
+  namespace: rotation-105823249
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: seed
+          image: mysql:8.0
+          env:
+            - name: MYSQL_PWD            # root password, used automatically by the mysql client
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-root-105823249
+                  key: password
+            - name: APP_USER             # appuser_v1_105823249
+              valueFrom:
+                secretKeyRef:
+                  name: db-cred-105823249
+                  key: username
+            - name: APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-cred-105823249
+                  key: password
+          command: ["bash", "-c"]
+          args:
+            - |
+              set -e
+              until mysqladmin ping -h mysql-105823249 -uroot --silent; do
+                echo "waiting for MySQL..."; sleep 3
+              done
+              mysql -h mysql-105823249 -uroot <<SQL
+              CREATE DATABASE IF NOT EXISTS app_105823249;
+              USE app_105823249;
+              CREATE TABLE IF NOT EXISTS records (
+                id    INT PRIMARY KEY,
+                owner VARCHAR(20)  NOT NULL,
+                note  VARCHAR(100) NOT NULL
+              );
+              INSERT IGNORE INTO records VALUES
+                (1, '105823249', 'Seed row 1 - Tirth Dipakkumar Patel'),
+                (2, '105823249', 'Seed row 2 - CLO835 Project 12'),
+                (3, '105823249', 'Seed row 3 - secrets rotation with zero downtime');
+              CREATE USER IF NOT EXISTS '${APP_USER}'@'%' IDENTIFIED BY '${APP_PASSWORD}';
+              GRANT SELECT ON app_105823249.* TO '${APP_USER}'@'%';
+              SQL
+              echo "seed complete"
